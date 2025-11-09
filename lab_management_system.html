@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lab Record Management System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'primary-blue': '#10b981',
+                        'secondary-gray': '#f3f4f6',
+                        'danger-red': '#ef4444',
+                        'success-green': '#16a34a', // Used for ON TIME status
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .page-content {
+            display: none;
+            min-height: calc(100vh - 80px); /* Height minus header */
+        }
+        .active-page {
+            display: block;
+        }
+        /* Custom scrollbar for better aesthetics */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+
+        /* Floating Alert Button Animation */
+        .alert-fab {
+            transition: all 0.3s ease-in-out;
+            animation: pulse-fab 2s infinite;
+        }
+        @keyframes pulse-fab {
+            0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 font-sans">
+
+    <div id="login-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black bg-opacity-75">
+        <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-md mx-4 transform transition-all duration-300" onclick="event.stopPropagation()">
+            <h3 class="text-2xl font-bold mb-6 text-primary-blue text-center">System Login</h3>
+            <form id="login-form" onsubmit="handleLogin(event)">
+                <div class="space-y-4">
+                    <input type="text" id="login-username" required placeholder="Username" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-primary-blue focus:border-primary-blue">
+                    <input type="password" id="login-password" required placeholder="Password" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-primary-blue focus:border-primary-blue">
+                </div>
+                <div class="mt-6">
+                    <button type="submit" class="w-full py-3 bg-primary-blue text-white font-bold rounded-lg shadow-md hover:bg-emerald-700 transition transform hover:scale-[1.01]">
+                        Login
+                    </button>
+                </div>
+            </form>
+            <p class="text-sm text-center mt-4 text-gray-600">
+                Don't have an account? <button onclick="showRegistrationModal()" class="text-danger-red font-semibold hover:text-red-700 transition">Register Here</button>
+            </p>
+        </div>
+    </div>
+
+    <div id="registration-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black bg-opacity-75">
+        <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-md mx-4 transform transition-all duration-300" onclick="event.stopPropagation()">
+            <h3 class="text-2xl font-bold mb-6 text-danger-red text-center">New User Registration</h3>
+            <form id="registration-form" onsubmit="handleRegister(event)">
+                <div class="space-y-4">
+                    <input type="text" id="reg-username" required placeholder="New Username" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-primary-blue focus:border-primary-blue">
+                    <input type="password" id="reg-password" required placeholder="New Password" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-primary-blue focus:border-primary-blue">
+                    <select id="reg-role" required class="w-full p-3 border border-gray-300 rounded-lg focus:ring-primary-blue focus:border-primary-blue">
+                        <option value="" disabled selected>Select Role (Admin/User)</option>
+                        <option value="admin">Admin (Lab Assistant)</option>
+                        <option value="user">User (Student/Faculty)</option>
+                    </select>
+                </div>
+                <div class="mt-6">
+                    <button type="submit" class="w-full py-3 bg-danger-red text-white font-bold rounded-lg shadow-md hover:bg-red-700 transition transform hover:scale-[1.01]">
+                        Register Account
+                    </button>
+                </div>
+            </form>
+            <p class="text-sm text-center mt-4 text-gray-600">
+                Already have an account? <button onclick="showLoginModal()" class="text-primary-blue font-semibold hover:text-emerald-700 transition">Login Here</button>
+            </p>
+        </div>
+    </div>
+
+    <div id="notification-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black bg-opacity-50" onclick="closeModal('notification-modal')">
+        <div class="bg-white p-6 rounded-xl shadow-2xl w-full max-w-sm mx-4 transform transition-all duration-300 scale-100" onclick="event.stopPropagation()">
+            <h3 id="modal-title" class="text-xl font-bold mb-3 text-primary-blue">Notification</h3>
+            <p id="modal-message" class="text-gray-700"></p>
+            <div class="mt-4 flex justify-end">
+                <button onclick="closeModal('notification-modal')" class="px-4 py-2 bg-primary-blue text-white font-semibold rounded-lg hover:bg-emerald-600 transition">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <header class="bg-white shadow-md sticky top-0 z-40">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-20">
+                <div class="flex items-center">
+                    <svg class="w-8 h-8 text-primary-blue mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                    <span class="text-2xl font-bold text-gray-800">Lab Manager</span>
+                </div>
+                <nav class="flex space-x-2 sm:space-x-4">
+                    <button id="nav-dashboard" onclick="changePage('dashboard')" class="nav-tab text-gray-600 hover:text-primary-blue px-3 py-2 text-sm font-medium transition duration-150 ease-in-out border-b-2 border-transparent">Dashboard</button>
+                    <button id="nav-issued-records" onclick="changePage('issued-records')" class="nav-tab text-gray-600 hover:text-primary-blue px-3 py-2 text-sm font-medium transition duration-150 ease-in-out border-b-2 border-transparent">Issued Records</button>
+                    <button id="nav-inventory" onclick="changePage('inventory')" class="nav-tab text-gray-600 hover:text-primary-blue px-3 py-2 text-sm font-medium transition duration-150 ease-in-out border-b-2 border-transparent">Inventory</button>
+                    <button id="nav-documentation" onclick="changePage('documentation')" class="nav-tab text-gray-600 hover:text-primary-blue px-3 py-2 text-sm font-medium transition duration-150 ease-in-out border-b-2 border-transparent">Documentation</button>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+        <div id="dashboard" class="page-content active-page relative">
+            <h1 class="text-3xl font-extrabold text-gray-900 mb-6">Lab Dashboard</h1>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div class="bg-white p-6 rounded-xl shadow-lg border-l-4 border-primary-blue flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-500">Total Issued Components</p>
+                        <p class="text-3xl font-bold text-gray-900" id="total-issued-count">0</p>
+                    </div>
+                    <svg class="w-10 h-10 text-primary-blue opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+                </div>
+                <div class="bg-white p-6 rounded-xl shadow-lg border-l-4 border-yellow-500 flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-500">Pending Returns (Today)</p>
+                        <p class="text-3xl font-bold text-gray-900" id="today-due-count">0</p>
+                    </div>
+                    <svg class="w-10 h-10 text-yellow-500 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                </div>
+                <div class="bg-white p-6 rounded-xl shadow-lg border-l-4 border-danger-red flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-500">Overdue (Alerts Sent)</p>
+                        <p class="text-3xl font-bold text-gray-900" id="overdue-count">0</p>
+                    </div>
+                    <svg class="w-10 h-10 text-danger-red opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-xl shadow-lg">
+                <h2 class="text-2xl font-bold text-gray-900 mb-4">Overdue Students (Action Required)</h2>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50" id="overdue-table-header">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student Name/Email</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Component</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Issue Date</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Return Date (Overdue)</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider overdue-actions-col">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="overdue-students-table" class="bg-white divide-y divide-gray-200">
+                            <tr>
+                                <td colspan="5" class="px-4 py-4 text-center text-gray-500">Loading data...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <button id="btn-send-alerts" onclick="sendOverdueAlerts()" class="alert-fab fixed bottom-8 right-8 bg-danger-red text-white p-4 rounded-full shadow-2xl font-bold text-sm uppercase flex items-center space-x-2 hover:bg-red-600 transition duration-300">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1"></path></svg>
+                <span class="hidden sm:inline">Send Overdue Alerts</span>
+            </button>
+
+            <div class="mt-8 text-center" id="btn-issue-new">
+                <button onclick="openModal('issue-modal')" class="px-8 py-3 bg-primary-blue text-white font-bold rounded-lg shadow-xl hover:bg-emerald-600 transition duration-300 transform hover:scale-105">
+                    Issue New Component
+                </button>
+            </div>
+        </div>
+        
+        <div id="issued-records" class="page-content">
+            <h1 class="text-3xl font-extrabold text-gray-900 mb-6">Active Issued Records</h1>
+            
+            <div class="bg-white p-6 rounded-xl shadow-lg">
+                <h2 class="text-2xl font-bold text-gray-900 mb-4">List of Unreturned Components</h2>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50" id="issued-records-table-header">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student Name</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Component</th>
+                                <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Issue Date</th>
+                                <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Due Date</th>
+                                <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider issued-actions-col">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="active-issued-records-table" class="bg-white divide-y divide-gray-200">
+                            <tr>
+                                <td colspan="6" class="px-4 py-4 text-center text-gray-500">Loading data...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div id="inventory" class="page-content">
+            <h1 class="text-3xl font-extrabold text-gray-900 mb-6">Lab Component Inventory</h1>
+
+            <div class="bg-white p-6 rounded-xl shadow-lg mb-8" id="form-add-component">
+                <h2 class="text-xl font-bold text-gray-900 mb-4">Add New Component Type</h2>
+                <form id="add-component-form" onsubmit="handleAddComponent(event)">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <input type="text" id="comp-name" required placeholder="Component Name (e.g., Arduino Uno)" class="p-3 border border-gray-300 rounded-lg focus:ring-primary-blue focus:border-primary-blue">
+                        <input type="number" id="comp-total" required placeholder="Total Stock Quantity" min="1" class="p-3 border border-gray-300 rounded-lg focus:ring-primary-blue focus:border-primary-blue">
+                        <button type="submit" class="p-3 bg-primary-blue text-white font-semibold rounded-lg hover:bg-emerald-600 transition duration-150 ease-in-out">Add Component</button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="bg-white p-6 rounded-xl shadow-lg">
+                <h2 class="text-2xl font-bold text-gray-900 mb-4">Component Stock Overview</h2>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50" id="inventory-table-header">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Component Name</th>
+                                <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Total Stock</th>
+                                <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Issued</th>
+                                <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Remaining</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider inventory-actions-col">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="component-list-table" class="bg-white divide-y divide-gray-200">
+                             <tr>
+                                 <td colspan="5" class="px-4 py-4 text-center text-gray-500">Loading data...</td>
+                             </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div id="documentation" class="page-content">
+            <h1 class="text-3xl font-extrabold text-gray-900 mb-6">System Documentation & Information</h1>
+
+            <div class="space-y-6">
+                <div class="bg-white p-6 rounded-xl shadow-lg">
+                    <h2 class="text-2xl font-bold text-primary-blue mb-3">Project Overview</h2>
+                    <p class="text-gray-700">This Lab Record Management System is designed to simplify the tracking of components issued to students, monitor component inventory, and automate overdue alerts for lab staff.</p>
+                </div>
+
+                <div class="bg-white p-6 rounded-xl shadow-lg">
+                    <h2 class="text-2xl font-bold text-primary-blue mb-3">Technology Used</h2>
+                    <ul class="list-disc list-inside text-gray-700 space-y-1">
+                        <li>**Frontend:** HTML5, CSS (Tailwind CSS for styling), and pure JavaScript for logic and interactivity.</li>
+                        <li>**Data Persistence:** Configured to communicate with a **PHP/SQL Backend** using the `fetch` API.</li>
+                    </ul>
+                </div>
+
+                <div class="bg-white p-6 rounded-xl shadow-lg">
+                    <h2 class="text-2xl font-bold text-primary-blue mb-3">Backend Requirements (For Real Deployment)</h2>
+                    <p class="text-gray-700">For a production environment, the following technologies are recommended:</p>
+                    <ul class="list-disc list-inside text-gray-700 space-y-1 mt-2">
+                        <li>**Backend:** PHP (API endpoints for CRUD operations and Telegram API for alerts).</li>
+                        <li>**Database:** MySQL/SQL for structured data storage (Inventory, Issued Records).</li>
+                    </ul>
+                </div>
+
+                <div class="bg-white p-6 rounded-xl shadow-lg">
+                    <h2 class="text-2xl font-bold text-primary-blue mb-3">Developer/Team Information (Placeholder)</h2>
+                    <p class="text-gray-700">This project was developed by Krishn Upadhyay (Team) for the purpose of efficient record keeping. Contact the System Administrator for support or new features.</p>
+                </div>
+            </div>
+        </div>
+
+        <div id="issue-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black bg-opacity-50" onclick="closeModal('issue-modal')">
+            <div class="bg-white p-6 rounded-xl shadow-2xl w-full max-w-lg mx-4 transform transition-all duration-300 scale-100" onclick="event.stopPropagation()">
+                <h3 class="text-2xl font-bold mb-4 text-primary-blue">Issue New Component</h3>
+                <form id="issue-component-form" onsubmit="handleIssueComponent(event)">
+                    <div class="space-y-4">
+                        <input type="text" id="issue-student-name" required placeholder="Student Name/ID (Returned By)" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-primary-blue focus:border-primary-blue">
+                        <input type="email" id="issue-student-email" required placeholder="Student Email (For Alert)" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-primary-blue focus:border-primary-blue">
+                        <input type="tel" id="issue-student-phone" required placeholder="Student Phone No." pattern="[0-9]{10}" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-primary-blue focus:border-primary-blue">
+
+                        <select id="issue-component-id" required class="w-full p-3 border border-gray-300 rounded-lg focus:ring-primary-blue focus:border-primary-blue">
+                            <option value="" disabled selected>Select Component</option>
+                            </select>
+                        <input type="text" id="issue-assistant-name" required placeholder="Issued By (Lab Assistant Name)" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-primary-blue focus:border-primary-blue">
+                        <label for="issue-return-date" class="block text-sm font-medium text-gray-700">Expected Return Date</label>
+                        <input type="date" id="issue-return-date" required class="w-full p-3 border border-gray-300 rounded-lg focus:ring-primary-blue focus:border-primary-blue">
+
+                    </div>
+                    <div class="mt-6 flex justify-end space-x-3">
+                        <button type="button" onclick="closeModal('issue-modal')" class="px-4 py-2 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300 transition">Cancel</button>
+                        <button type="submit" class="px-4 py-2 bg-primary-blue text-white font-semibold rounded-lg hover:bg-emerald-600 transition">Issue Component</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div id="details-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black bg-opacity-50" onclick="closeModal('details-modal')">
+            <div class="bg-white p-6 rounded-xl shadow-2xl w-full max-w-lg mx-4 transform transition-all duration-300 scale-100" onclick="event.stopPropagation()">
+                <h3 class="text-2xl font-bold mb-4 text-primary-blue">Component Issue Details</h3>
+                <div id="details-content" class="space-y-3 text-gray-700">
+                    </div>
+                <div class="mt-6 flex justify-end space-x-3">
+                    <button type="button" onclick="closeModal('details-modal')" class="px-4 py-2 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300 transition">Close</button>
+                    <button id="return-button" type="button" onclick="handleReturnComponent()" class="px-4 py-2 bg-yellow-500 text-white font-semibold rounded-lg hover:bg-yellow-600 transition">Mark as Returned</button>
+                </div>
+            </div>
+        </div>
+
+
+    </main>
+
+    <script>
+        // --- API CONFIGURATION ---
+        // API path assumes the file is in the 'lab_system' folder within htdocs.
+        const API_URL = '/lab_system/api.php'; 
+
+        // Global Data Stores and Role State
+        let components = []; 
+        let issuedRecords = []; 
+        let currentRecordId = null;
+        let currentPage = 'dashboard';
+        let currentRole = null; // 'admin' or 'user'
+
+        // --- AUTHENTICATION FUNCTIONS (NEW) ---
+
+        function showLoginModal() {
+            closeModal('registration-modal');
+            document.getElementById('login-modal').classList.add('flex');
+            document.getElementById('login-modal').classList.remove('hidden');
+        }
+
+        function showRegistrationModal() {
+            closeModal('login-modal');
+            document.getElementById('registration-modal').classList.add('flex');
+            document.getElementById('registration-modal').classList.remove('hidden');
+        }
+        
+        async function handleLogin(event) {
+            event.preventDefault();
+            const username = document.getElementById('login-username').value.trim();
+            const password = document.getElementById('login-password').value;
+
+            showModal('notification-modal', 'Logging In...', 'Verifying credentials...');
+
+            const result = await fetchData('login', 'POST', { username, password });
+
+            closeModal('notification-modal');
+            if (result.success) {
+                currentRole = result.role; // PHP returns 'admin' or 'user'
+                closeModal('login-modal');
+                document.getElementById('login-form').reset();
+                showModal('notification-modal', 'Success!', `Login successful as **${currentRole.toUpperCase()}**. Loading data...`);
+                loadInitialData(); // Load data and apply restrictions
+            } else {
+                showModal('notification-modal', 'Login Failed', result.message || 'Invalid username or password.');
+            }
+        }
+
+        async function handleRegister(event) {
+            event.preventDefault();
+            const username = document.getElementById('reg-username').value.trim();
+            const password = document.getElementById('reg-password').value;
+            const role = document.getElementById('reg-role').value;
+
+            if (!username || !password || !role) {
+                showModal('notification-modal', 'Error', 'All fields are required.');
+                return;
+            }
+
+            showModal('notification-modal', 'Registering...', 'Creating new user account...');
+
+            const result = await fetchData('register', 'POST', { username, password, role });
+
+            closeModal('notification-modal');
+            if (result.success) {
+                showModal('notification-modal', 'Registration Success!', `User **${username}** registered as **${role.toUpperCase()}**. Please log in.`);
+                document.getElementById('registration-form').reset();
+                showLoginModal();
+            } else {
+                showModal('notification-modal', 'Registration Failed', result.message || 'An error occurred during registration.');
+            }
+        }
+
+        function applyRoleRestrictions() {
+            const isAdmin = currentRole === 'admin';
+            
+            // 1. DASHBOARD CONTROLS
+            const btnSendAlerts = document.getElementById('btn-send-alerts');
+            const btnIssueNew = document.getElementById('btn-issue-new');
+            
+            if (btnSendAlerts) btnSendAlerts.style.display = isAdmin ? 'flex' : 'none';
+            if (btnIssueNew) btnIssueNew.style.display = isAdmin ? 'block' : 'none';
+
+            // 2. INVENTORY CONTROLS
+            const formAddComponent = document.getElementById('form-add-component');
+            if (formAddComponent) formAddComponent.style.display = isAdmin ? 'block' : 'none';
+            
+            // 3. TABLE HEADERS (Hiding the 'Action' column headers)
+            document.querySelectorAll('.overdue-actions-col, .issued-actions-col, .inventory-actions-col').forEach(th => {
+                th.style.display = isAdmin ? 'table-cell' : 'none';
+            });
+        }
+
+        // --- Utility Functions (Modal, etc.) ---
+        function showModal(id, title, message) {
+            const modal = document.getElementById(id);
+            if (title) document.getElementById('modal-title').textContent = title;
+            if (message) document.getElementById('modal-message').innerHTML = message;
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeModal(id) {
+            const modal = document.getElementById(id);
+            modal.classList.remove('flex');
+            modal.classList.add('hidden');
+        }
+
+        function getComponentById(id) {
+            return components.find(c => c.component_id == id);
+        }
+
+        function getComponentNameById(id) {
+            return getComponentById(id)?.component_name || 'Unknown Component';
+        }
+
+        // --- FETCHING DATA FROM PHP API ---
+
+        async function fetchData(action, method = 'GET', data = null) {
+            let url = `${API_URL}?action=${action}`;
+            const options = {
+                method: method,
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            };
+
+            if (method === 'POST' && data) {
+                options.body = JSON.stringify(data);
+            } else if (method === 'GET' && data) {
+                url += '&' + new URLSearchParams(data).toString();
+            }
+
+            try {
+                const response = await fetch(url, options);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const result = await response.json();
+                if (result.success === false && action !== 'login' && action !== 'register') { // Allow login/register to return failure
+                    throw new Error(result.message || 'API operation failed.');
+                }
+                return result;
+            } catch (error) {
+                console.error('API Error:', error);
+                showModal('notification-modal', 'API Error', `Could not connect to the server or process request: ${error.message}`);
+                return { success: false, data: [] }; 
+            }
+        }
+        
+        async function loadInitialData() {
+            // Fetch component inventory and all issued records simultaneously
+            const [compResult, recordsResult] = await Promise.all([
+                fetchData('getComponents'),
+                fetchData('getIssuedRecords')
+            ]);
+            
+            components = compResult.data || [];
+            issuedRecords = recordsResult.data || [];
+
+            // Reload the current page content and apply restrictions
+            changePage(currentPage); 
+            applyRoleRestrictions();
+        }
+
+        // --- NAVIGATION ---
+        
+        function changePage(pageId) {
+            document.querySelectorAll('.page-content').forEach(p => p.classList.remove('active-page'));
+            document.getElementById(pageId).classList.add('active-page');
+
+            document.querySelectorAll('.nav-tab').forEach(tab => {
+                tab.classList.remove('text-primary-blue', 'border-primary-blue');
+                tab.classList.add('text-gray-600', 'border-transparent');
+            });
+
+            document.getElementById(`nav-${pageId}`).classList.add('text-primary-blue', 'border-primary-blue');
+            document.getElementById(`nav-${pageId}`).classList.remove('text-gray-600', 'border-transparent');
+
+            currentPage = pageId;
+            // Rerender the content when changing pages
+            if (pageId === 'dashboard') renderDashboard();
+            if (pageId === 'inventory') renderInventory();
+            if (pageId === 'issued-records') renderIssuedRecords(); 
+            
+            applyRoleRestrictions();
+        }
+
+        // --- DASHBOARD LOGIC (Home) ---
+        function renderDashboard() {
+            const isAdmin = currentRole === 'admin';
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            const activeIssuedRecords = issuedRecords.filter(r => r.is_returned == 0);
+
+            const overdueRecords = activeIssuedRecords.filter(record => {
+                const returnDate = new Date(record.return_date);
+                returnDate.setHours(0, 0, 0, 0);
+                return returnDate < today;
+            });
+
+            const todayDueRecords = activeIssuedRecords.filter(record => {
+                const returnDate = new Date(record.return_date);
+                returnDate.setHours(0, 0, 0, 0);
+                return returnDate.getTime() === today.getTime();
+            });
+
+            document.getElementById('total-issued-count').textContent = activeIssuedRecords.length;
+            document.getElementById('today-due-count').textContent = todayDueRecords.length;
+            document.getElementById('overdue-count').textContent = overdueRecords.length;
+
+            const tableBody = document.getElementById('overdue-students-table');
+            tableBody.innerHTML = '';
+
+            if (overdueRecords.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="5" class="px-4 py-4 text-center text-gray-500">No overdue components found! 🎉</td></tr>';
+                // Colspan check for admin/user
+                if (!isAdmin) {
+                   tableBody.querySelector('td').setAttribute('colspan', '4');
+                }
+                return;
+            }
+
+            overdueRecords.forEach(record => {
+                const actionButton = isAdmin ? 
+                    `<button onclick="openDetailsModal(${record.record_id})" class="text-primary-blue hover:text-emerald-700 font-semibold text-xs">View/Return</button>` : 
+                    `<span class="text-gray-400 text-xs">View Only</span>`;
+                                
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-red-50 transition';
+                row.innerHTML = `
+                    <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">${record.student_name} / <span class="text-xs text-gray-500">${record.student_email}</span></td>
+                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700 font-semibold">${getComponentNameById(record.component_id)}</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">${record.issue_date}</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-sm font-bold text-danger-red">${record.return_date}</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-sm font-medium overdue-actions-col" style="display: ${isAdmin ? 'table-cell' : 'none'};">
+                        ${actionButton}
+                    </td>
+                `;
+                tableBody.appendChild(row);
+            });
+            // Ensure colspan is correct when action column is hidden
+            if (!isAdmin) {
+                document.getElementById('overdue-students-table').querySelectorAll('td[colspan="5"]').forEach(td => td.setAttribute('colspan', '4'));
+            }
+        }
+
+        async function sendOverdueAlerts() {
+            if (currentRole !== 'admin') {
+                showModal('notification-modal', 'Access Denied', 'Only Admin users can send overdue alerts.');
+                return;
+            }
+            
+            const overdueCount = document.getElementById('overdue-count').textContent;
+
+            if (parseInt(overdueCount) === 0) {
+                showModal('notification-modal', 'No Alerts Needed', 'No overdue students to send alerts to.');
+                return;
+            }
+            
+            showModal('notification-modal', 'Sending Alerts...', `<div class="flex items-center space-x-2"><svg class="animate-spin h-5 w-5 text-primary-blue" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg><span>Attempting to send ${overdueCount} Telegram alerts...</span></div>`);
+
+
+            const result = await fetchData('sendAlerts', 'POST', {});
+
+            if (result.success) {
+                // PHP returns the actual count of emails processed
+                showModal('notification-modal', 'Alerts Sent Successfully!', `${result.message}`);
+            } else {
+                 showModal('notification-modal', 'Alert Sending Failed', `An error occurred while attempting to send alerts: ${result.message}`);
+            }
+        }
+        
+        // --- ISSUED RECORDS PAGE LOGIC (Active List) ---
+        function renderIssuedRecords() {
+            const isAdmin = currentRole === 'admin';
+            const tableBody = document.getElementById('active-issued-records-table');
+            tableBody.innerHTML = '';
+
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            const activeIssuedRecords = issuedRecords.filter(r => r.is_returned == 0);
+
+            if (activeIssuedRecords.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="6" class="px-4 py-4 text-center text-gray-500">No components are currently issued.</td></tr>';
+                 // Colspan check for admin/user
+                 if (!isAdmin) {
+                   tableBody.querySelector('td').setAttribute('colspan', '5');
+                }
+                return;
+            }
+            
+            activeIssuedRecords.forEach(record => {
+                const returnDate = new Date(record.return_date);
+                returnDate.setHours(0, 0, 0, 0);
+                
+                let statusText;
+                let statusColor;
+
+                if (returnDate < today) {
+                    statusText = 'OVERDUE';
+                    statusColor = 'bg-danger-red text-white';
+                } else if (returnDate.getTime() === today.getTime()) {
+                    statusText = 'DUE TODAY';
+                    statusColor = 'bg-yellow-500 text-white';
+                } else {
+                    statusText = 'ON TIME';
+                    statusColor = 'bg-success-green text-white';
+                }
+
+                const actionButton = isAdmin ? 
+                    `<button onclick="openDetailsModal(${record.record_id})" class="text-primary-blue hover:text-emerald-700 font-semibold text-xs">View/Return</button>` :
+                    `<button onclick="openDetailsModal(${record.record_id})" class="text-gray-500 hover:text-gray-700 font-semibold text-xs">View Details</button>`;
+
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-gray-50 transition';
+                row.innerHTML = `
+                    <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">${record.student_name}</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700 font-semibold">${getComponentNameById(record.component_id)}</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-center text-sm text-gray-500">${record.issue_date}</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-center text-sm font-semibold">${record.return_date}</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-center text-xs">
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusColor}">
+                            ${statusText}
+                        </span>
+                    </td>
+                    <td class="px-4 py-3 whitespace-nowrap text-sm font-medium issued-actions-col" style="display: ${isAdmin ? 'table-cell' : 'table-cell'};">
+                        ${actionButton}
+                    </td>
+                `;
+                tableBody.appendChild(row);
+            });
+             // Ensure colspan is correct when action column is hidden
+             if (!isAdmin) {
+                 document.getElementById('active-issued-records-table').querySelectorAll('td[colspan="6"]').forEach(td => td.setAttribute('colspan', '5'));
+             }
+        }
+
+
+        // --- INVENTORY LOGIC ---
+        function getIssuedCount(compId) {
+            return issuedRecords.filter(r => r.component_id == compId && r.is_returned == 0).length;
+        }
+
+        function renderInventory() {
+            const isAdmin = currentRole === 'admin';
+            const tableBody = document.getElementById('component-list-table');
+            tableBody.innerHTML = '';
+
+            if (components.length === 0) {
+                 tableBody.innerHTML = '<tr><td colspan="5" class="px-4 py-4 text-center text-gray-500">No component types defined yet.</td></tr>';
+                  // Colspan check for admin/user
+                 if (!isAdmin) {
+                   tableBody.querySelector('td').setAttribute('colspan', '4');
+                }
+                 return;
+            }
+
+            components.forEach(comp => {
+                const issued = getIssuedCount(comp.component_id);
+                const remaining = comp.total_stock - issued;
+                
+                const actionButtons = isAdmin ? `
+                        <button onclick="handleAdjustStock(${comp.component_id}, 1)" class="text-primary-blue hover:text-emerald-700 font-semibold text-xs mr-2 border-r pr-2">Add Stock</button>
+                        <button onclick="handleAdjustStock(${comp.component_id}, -1)" class="text-yellow-600 hover:text-yellow-800 font-semibold text-xs">Remove Stock</button>
+                    ` : `<span class="text-gray-400 text-xs">No Actions</span>`;
+
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-gray-50 transition';
+                row.innerHTML = `
+                    <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">${comp.component_name}</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-center text-sm font-bold text-gray-700">${comp.total_stock}</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-center text-sm font-semibold text-primary-blue">${issued}</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-center text-sm font-bold ${remaining < 3 ? 'text-danger-red' : 'text-green-600'}">${remaining}</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-sm font-medium inventory-actions-col" style="display: ${isAdmin ? 'table-cell' : 'none'};">
+                        ${actionButtons}
+                    </td>
+                `;
+                tableBody.appendChild(row);
+            });
+            // Ensure colspan is correct when action column is hidden
+            if (!isAdmin) {
+                document.getElementById('component-list-table').querySelectorAll('td[colspan="5"]').forEach(td => td.setAttribute('colspan', '4'));
+            }
+        }
+
+        async function handleAddComponent(event) {
+            if (currentRole !== 'admin') {
+                showModal('notification-modal', 'Access Denied', 'Only Admin users can add new components.');
+                return;
+            }
+            event.preventDefault();
+            const name = document.getElementById('comp-name').value.trim();
+            const totalStock = parseInt(document.getElementById('comp-total').value, 10);
+
+            const result = await fetchData('addComponent', 'POST', { name, totalStock });
+
+            if (result.success) {
+                await loadInitialData(); 
+                document.getElementById('add-component-form').reset();
+                showModal('notification-modal', 'Success', `New component **${name}** added.`);
+            }
+        }
+
+        async function handleAdjustStock(compId, delta) {
+            if (currentRole !== 'admin') {
+                showModal('notification-modal', 'Access Denied', 'Only Admin users can adjust stock.');
+                return;
+            }
+            
+            const component = getComponentById(compId);
+            if (!component) return;
+
+            const issued = getIssuedCount(compId);
+            let newStock = component.total_stock + delta;
+
+            if (newStock < 0 || newStock < issued) {
+                showModal('notification-modal', 'Error', `Stock update failed. Total stock cannot be negative or less than the currently issued quantity (${issued}).`);
+                return;
+            }
+
+            const result = await fetchData('updateStock', 'POST', { 
+                id: compId, 
+                newStock: newStock 
+            });
+
+            if (result.success) {
+                await loadInitialData();
+                showModal('notification-modal', 'Stock Updated', `Stock for **${component.component_name}** updated. New total stock: **${newStock}**.`);
+            }
+        }
+
+        // --- ISSUE/RETURN LOGIC ---
+        function populateComponentSelect() {
+            const select = document.getElementById('issue-component-id');
+            select.innerHTML = '<option value="" disabled selected>Select Component</option>';
+            components.forEach(comp => {
+                const issued = getIssuedCount(comp.component_id);
+                const remaining = comp.total_stock - issued;
+                const option = document.createElement('option');
+                option.value = comp.component_id;
+                option.textContent = `${comp.component_name} (Remaining: ${remaining})`;
+                if (remaining <= 0) {
+                    option.disabled = true;
+                }
+                select.appendChild(option);
+            });
+
+            const today = new Date().toISOString().split('T')[0];
+            // --- BUG FIX ---
+            // Yahaan se 'min' attribute hata diya hai taaki aap puraani date select kar sakein
+            // document.getElementById('issue-return-date').setAttribute('min', today);
+        }
+
+        function openModal(modalId) {
+            if (modalId === 'issue-modal') {
+                if (currentRole !== 'admin') {
+                    showModal('notification-modal', 'Access Denied', 'Only Admin users can issue new components.');
+                    return;
+                }
+                populateComponentSelect();
+            }
+            document.getElementById(modalId).classList.remove('hidden');
+            document.getElementById(modalId).classList.add('flex');
+        }
+
+        async function handleIssueComponent(event) {
+            if (currentRole !== 'admin') return; // Should be blocked by openModal, but good practice
+            event.preventDefault();
+
+            const data = {
+                component_id: parseInt(document.getElementById('issue-component-id').value, 10),
+                student_name: document.getElementById('issue-student-name').value.trim(),
+                student_email: document.getElementById('issue-student-email').value.trim(),
+                student_phone: document.getElementById('issue-student-phone').value.trim(),
+                issued_by_assistant: document.getElementById('issue-assistant-name').value.trim(),
+                return_date: document.getElementById('issue-return-date').value,
+                issue_date: new Date().toISOString().split('T')[0]
+            };
+
+            const component = getComponentById(data.component_id);
+            if (!component) return;
+
+            const result = await fetchData('issue', 'POST', data);
+
+            if (result.success) {
+                await loadInitialData(); // Reload all data to get the new record
+                closeModal('issue-modal');
+                document.getElementById('issue-component-form').reset();
+                showModal('notification-modal', 'Success', `Component **${component.component_name}** issued to **${data.student_name}**.`);
+            }
+        }
+
+        // --- BUG FIX ---
+        // Yeh raha 'details-modal' ka sahi function
+        function openDetailsModal(recordId) {
+            const record = issuedRecords.find(r => r.record_id == recordId);
+            if (!record) return;
+            currentRecordId = recordId;
+            const isAdmin = currentRole === 'admin';
+
+            const componentName = getComponentNameById(record.component_id);
+            const isReturned = record.is_returned == 1; 
+            const isOverdue = new Date(record.return_date) < new Date(new Date().setHours(0,0,0,0)) && !isReturned;
+
+            const detailsContent = document.getElementById('details-content');
+            detailsContent.innerHTML = `
+                <p><strong>Component:</strong> <span class="font-semibold">${componentName}</span></p>
+                <p><strong>Student Name/ID:</strong> ${record.student_name}</p>
+                <p><strong>Student Email:</strong> ${record.student_email}</p>
+                <p><strong>Student Phone:</strong> ${record.student_phone}</p>
+                <p><strong>Issued By:</strong> ${record.issued_by_assistant}</p>
+                <p><strong>Issued On:</strong> ${record.issue_date}</p>
+                <p><strong>Expected Return:</strong> <span class="${isOverdue ? 'text-danger-red font-bold' : 'text-green-600 font-semibold'}">${record.return_date} ${isOverdue ? '(OVERDUE!)' : ''}</span></p>
+                <p><strong>Status:</strong> <span class="font-bold text-${isReturned ? 'primary-blue' : 'yellow-600'}">${isReturned ? 'RETURNED' : 'ISSUED'}</span></p>
+                ${isReturned ? `<p><strong>Actual Return Date:</strong> ${record.actual_return_date}</p>` : ''}
+            `;
+
+            const returnButton = document.getElementById('return-button');
+            if (isReturned || !isAdmin) {
+                returnButton.classList.add('hidden');
+            } else {
+                returnButton.classList.remove('hidden');
+            }
+
+            // Galti yahaan thi (pehle 'details-cal' likha tha)
+            openModal('details-modal'); 
+        }
+
+        async function handleReturnComponent() {
+            if (currentRole !== 'admin') return; // Should be blocked by openDetailsModal visibility
+            if (currentRecordId === null) return;
+
+            const result = await fetchData('return', 'POST', { record_id: currentRecordId });
+
+            if (result.success) {
+                await loadInitialData(); 
+                closeModal('details-modal');
+                showModal('notification-modal', 'Success', `Component successfully marked as returned.`);
+                currentRecordId = null;
+            }
+        }
+
+        // --- Initialization ---
+        window.onload = function() {
+            // Show Login Modal first (Replaced Role Selection)
+            showLoginModal();
+            
+            // Hide other modals initially
+            document.getElementById('issue-modal').classList.add('hidden');
+            document.getElementById('details-modal').classList.add('hidden');
+            
+            // Note: Data loading and rendering is triggered only after successful login (handleLogin).
+        };
+
+    </script>
+</body>
+</html>
